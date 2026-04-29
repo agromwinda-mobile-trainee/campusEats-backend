@@ -1,0 +1,12 @@
+.venv/
+.git/
+.github/
+*.log
+Dockerfile
+docker-compose*.yml
+staticfiles/
+media/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
