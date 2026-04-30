@@ -1,0 +1,13 @@
+HTTP/1.1 200 OK
+Server: nginx/1.22.1
+Date: Thu, 30 Apr 2026 14:58:37 GMT
+Content-Type: application/json
+Content-Length: 586
+Connection: keep-alive
+Vary: Accept
+Allow: GET, POST, HEAD, OPTIONS
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Referrer-Policy: same-origin
+Cross-Origin-Opener-Policy: same-origin
+

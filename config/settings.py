@@ -98,7 +98,6 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 
-DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 AWS_S3_ENDPOINT_URL = f"http{'s' if env('MINIO_STORAGE_USE_SSL') else ''}://{env('MINIO_STORAGE_ENDPOINT', default='localhost:9000')}"
 AWS_ACCESS_KEY_ID = env("MINIO_STORAGE_ACCESS_KEY", default="minioadmin")
 AWS_SECRET_ACCESS_KEY = env("MINIO_STORAGE_SECRET_KEY", default="minioadmin")
@@ -109,6 +108,19 @@ AWS_S3_FILE_OVERWRITE = False
 AWS_S3_REGION_NAME = "us-east-1"
 AWS_S3_ADDRESSING_STYLE = "path"  # Compatible MinIO (évite le "virtual-host style")
 AWS_S3_SIGNATURE_VERSION = "s3v4"
+AWS_S3_CUSTOM_DOMAIN = env("MEDIA_PUBLIC_DOMAIN", default="")
+AWS_S3_URL_PROTOCOL = env("MEDIA_PUBLIC_PROTOCOL", default="http:")
+
+# Django 4.2+ compatible storage settings.
+# Keep STORAGES as source of truth; DEFAULT_FILE_STORAGE may be ignored in newer versions.
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/1")
 CACHES = {
