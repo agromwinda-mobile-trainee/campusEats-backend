@@ -16,5 +16,5 @@ class CommentCursorPagination(CursorPagination):
 
 
 class FollowRelationPagination(LimitOffsetPagination):
-    default_limit = 20
+    default_limit = 30
     max_limit = 100

@@ -9,6 +9,6 @@ class CampusEatsUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
         (
             "Campus Profile",
-            {"fields": ("avatar", "bio", "latitude", "longitude")},
+            {"fields": ("avatar", "avatar_url", "bio", "latitude", "longitude")},
         ),
     )

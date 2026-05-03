@@ -7,6 +7,7 @@ Backend API production-ready pour l'app mobile CampusEats (Django + DRF + Postgr
 - Documentation complète: `docs/API_DOCUMENTATION.md`
 - Base URL VPS actuelle: `http://74.208.50.178`
 - Prompt React Native (TikTok-style): `docs/PROMPT_REACT_NATIVE_TIKTOK_APP.md`
+- Prompt intégration routes social / favoris / recherche / notifications : `docs/PROMPT_INTEGRER_ROUTES_SOCIAL.md`
 
 ## Démarrage rapide
 
@@ -32,6 +33,20 @@ Backend API production-ready pour l'app mobile CampusEats (Django + DRF + Postgr
    - `http://IP_DU_VPS` (Nginx → Django)
    - Les fichiers vidéo sont servis via `http://IP_DU_VPS/media/...` (Nginx → MinIO)
 
+### Mettre à jour le VPS après un `git pull`
+
+Le conteneur `web` exécute `migrate` et `collectstatic` au démarrage (`scripts/start.sh`). Après avoir récupéré le code :
+
+1. **SSH** sur le VPS, puis aller dans le répertoire du dépôt (celui où se trouvent `docker-compose.vps.yml` et `.env`).
+2. **Sauvegardes (recommandé avant migration)** : sauvegarde PostgreSQL si la base contient des données importantes (ex. `docker compose -f docker-compose.vps.yml exec db pg_dump -U campuseats campuseats > backup.sql`).
+3. **Mettre à jour le code** : `git pull` (branche concernée).
+4. **Reconstruire et redémarrer** la stack pour prendre en compte dépendances, migrations et code :
+   - `docker compose -f docker-compose.vps.yml up -d --build`
+5. **Vérifier** : logs du service web sans erreur au démarrage :
+   - `docker compose -f docker-compose.vps.yml logs -f web`  
+   Vous devez voir les lignes « Appliquer migrations Django… » puis Gunicorn.
+6. En cas de **nouvelles variables** dans `.env.example`, fusionner manuellement dans le `.env` du VPS avant le redémarrage.
+
 ### HTTPS sans nom de domaine (auto-signé)
 
 Let’s Encrypt ne fournit généralement pas de certificat pour une IP. Pour chiffrer quand même:
@@ -45,20 +60,17 @@ Let’s Encrypt ne fournit généralement pas de certificat pour une IP. Pour ch
 
 ## Endpoints principaux
 
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `GET /api/videos/`
-- `POST /api/videos/`
-- `GET /api/videos/{id}/`
-- `POST /api/videos/{id}/like/`
-- `POST /api/videos/{id}/comment/`
-- `GET /api/reviews/`
-- `POST /api/reviews/`
+Voir la liste complète dans `docs/API_DOCUMENTATION.md`. Exemples :
 
-## Filtres utiles
+- Auth : `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/token/refresh`
+- Vidéos : `GET /api/videos`, `POST /api/videos`, `GET /api/videos/{id}`, `GET /api/videos/nearby`, `POST /api/videos/{id}/like`, `GET /api/videos/{id}/comments`, `POST /api/videos/{id}/comment`, `POST|DELETE /api/videos/{id}/bookmark`
+- Utilisateurs : `GET|PATCH /api/users/me`, `POST /api/users/me/avatar`, `GET /api/users/{id}`, `GET /api/users/{id}/videos`, `GET .../followers|following`, `POST|DELETE /api/users/{id}/follow`, …
+- Autres : `GET /api/search`, `GET|POST /api/sounds`, `GET /api/bookmarks`, `GET /api/notifications`, reviews sous `/api/reviews`
 
-- Feed trending:
-  - `GET /api/videos/?feed=trending`
-- Feed nearby:
-  - `GET /api/videos/nearby/?lat=48.85&lng=2.35&radius_km=3`
-# campusEats-backend
+## Filtres utiles (feed vidéo)
+
+- Chronologique : `GET /api/videos`
+- Tendance : `GET /api/videos?feed=trending`
+- Pour toi : `GET /api/videos?feed=for_you`
+- Abonnements (JWT) : `GET /api/videos?feed=following`
+- Proximité : `GET /api/videos/nearby?lat=48.85&lng=2.35&radius_km=3`

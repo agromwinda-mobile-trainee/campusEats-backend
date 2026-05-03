@@ -21,6 +21,7 @@ class VideoPost(models.Model):
         related_name="videos",
     )
     video_url = models.FileField(upload_to="videos/")
+    thumbnail = models.ImageField(upload_to="video_thumbnails/", blank=True, null=True)
     sound = models.ForeignKey(
         Sound,
         on_delete=models.SET_NULL,

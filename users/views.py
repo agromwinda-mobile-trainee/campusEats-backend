@@ -9,17 +9,30 @@ from interactions.notifications import notify_follow
 
 from videos.models import VideoPost
 from videos.pagination import FeedCursorPagination, FollowRelationPagination
-from videos.serializers import VideoPostSerializer
+from videos.serializers import VideoProfileGridSerializer
 
+from .media_urls import user_avatar_absolute_url
 from .serializers import (
     CampusTokenObtainPairSerializer,
+    CurrentUserSerializer,
     RegisterSerializer,
     UserBriefSerializer,
+    UserMeUpdateSerializer,
     UserPublicSerializer,
-    UserSerializer,
 )
 
 User = get_user_model()
+
+_MAX_AVATAR_BYTES = 5 * 1024 * 1024
+_ALLOWED_AVATAR_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
+
+
+def _annotated_user_qs():
+    return User.objects.annotate(
+        followers_count=Count("follower_edges", distinct=True),
+        following_count=Count("following_edges", distinct=True),
+        videos_count=Count("videos", distinct=True),
+    )
 
 
 class RegisterView(generics.CreateAPIView):
@@ -30,7 +43,11 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return response.Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+        user = _annotated_user_qs().get(pk=user.pk)
+        return response.Response(
+            CurrentUserSerializer(user, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class LoginView(TokenObtainPairView):
@@ -42,33 +59,58 @@ class UserViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     lookup_field = "pk"
 
     def get_queryset(self):
-        return User.objects.annotate(
-            followers_count=Count("follower_edges", distinct=True),
-            following_count=Count("following_edges", distinct=True),
-            videos_count=Count("videos", distinct=True),
-        )
+        return _annotated_user_qs()
 
     def get_serializer_class(self):
-        if self.action == "me":
-            return UserSerializer
         if self.action in ("followers", "following"):
             return UserBriefSerializer
         return UserPublicSerializer
 
     @action(detail=False, methods=["get", "patch"], permission_classes=[permissions.IsAuthenticated])
     def me(self, request):
+        user = _annotated_user_qs().get(pk=request.user.pk)
         if request.method == "GET":
-            serializer = UserSerializer(request.user, context={"request": request})
-            return response.Response(serializer.data)
-        serializer = UserSerializer(
-            request.user,
-            data=request.data,
-            partial=True,
-            context={"request": request},
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return response.Response(serializer.data)
+            return response.Response(CurrentUserSerializer(user, context={"request": request}).data)
+        patch = UserMeUpdateSerializer(data=request.data, partial=True, context={"request": request})
+        patch.is_valid(raise_exception=True)
+        patch.update(user, patch.validated_data)
+        user = _annotated_user_qs().get(pk=request.user.pk)
+        return response.Response(CurrentUserSerializer(user, context={"request": request}).data)
+
+    @action(
+        detail=False,
+        methods=["post"],
+        permission_classes=[permissions.IsAuthenticated],
+        url_path="me/avatar",
+    )
+    def upload_me_avatar(self, request):
+        upload = request.FILES.get("avatar") or request.FILES.get("file")
+        if not upload:
+            return response.Response(
+                {"detail": "Missing multipart file field 'avatar' or 'file'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if upload.size > _MAX_AVATAR_BYTES:
+            return response.Response(
+                {"detail": "File too large (maximum 5 MB)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        content_type = getattr(upload, "content_type", "") or ""
+        if content_type not in _ALLOWED_AVATAR_TYPES:
+            return response.Response(
+                {
+                    "detail": "Invalid content type. Allowed: image/jpeg, image/png, image/webp.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user = User.objects.get(pk=request.user.pk)
+        if user.avatar:
+            user.avatar.delete(save=False)
+        user.avatar = upload
+        user.avatar_url = None
+        user.save()
+        url = user_avatar_absolute_url(user, request)
+        return response.Response({"avatar": url})
 
     @action(detail=True, methods=["get"], permission_classes=[permissions.AllowAny])
     def videos(self, request, pk=None):
@@ -78,7 +120,7 @@ class UserViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
         )
         paginator = FeedCursorPagination()
         page = paginator.paginate_queryset(queryset, request, view=self)
-        serializer = VideoPostSerializer(page, many=True, context={"request": request})
+        serializer = VideoProfileGridSerializer(page, many=True, context={"request": request})
         if page is not None:
             return paginator.get_paginated_response(serializer.data)
         return response.Response(serializer.data)
