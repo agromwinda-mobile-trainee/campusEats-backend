@@ -1,8 +1,10 @@
+from datetime import timedelta
 from math import radians, cos, sin, asin, sqrt
 
 from django.core.cache import cache
 from django.db.models import Count, F, IntegerField, Value
 from django.db.models.functions import Coalesce
+from django.utils import timezone
 
 from .models import VideoPost
 
@@ -20,7 +22,7 @@ def haversine_distance(lat1, lon1, lat2, lon2):
 def get_trending_queryset():
     # Trending score favors engagement while preserving recency ordering fallback.
     return (
-        VideoPost.objects.select_related("user")
+        VideoPost.objects.select_related("user", "sound")
         .annotate(
             likes_total=Count("likes", distinct=True),
             comments_total=Count("comments", distinct=True),
@@ -32,6 +34,15 @@ def get_trending_queryset():
         )
         .order_by("-trending_score", "-created_at")
     )
+
+
+def get_for_you_queryset(*, user=None):
+    """
+    “Pour toi” v1: mélange tendance + contenu récent (30 jours) pour un fil plus “FYP”
+    qu’un simple reverse chronologique, sans modèle de reco lourd.
+    """
+    since = timezone.now() - timedelta(days=30)
+    return get_trending_queryset().filter(created_at__gte=since)
 
 
 def get_cached_feed_key(kind: str, suffix: str = "") -> str:

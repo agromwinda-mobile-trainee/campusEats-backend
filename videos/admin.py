@@ -1,6 +1,11 @@
 from django.contrib import admin
 
-from .models import VideoPost
+from .models import Sound, VideoPost
+
+
+@admin.register(Sound)
+class SoundAdmin(admin.ModelAdmin):
+    list_display = ("id", "title", "created_at")
 
 
 @admin.register(VideoPost)
